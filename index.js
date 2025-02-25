@@ -10,7 +10,12 @@ const port = process.env.PORT || 5000;
 const { ObjectId } = require('mongodb');
 // Middleware
 app.use(cors({
-    origin: ["http://localhost:5173"], // Replace with your actual frontend URL in production
+    origin: [
+        'http://localhost:5173', 
+        'https://task-management-f6e55.web.app',
+        'https://task-management-f6e55.firebaseapp.com',
+    
+         ], // Replace with your actual frontend URL in production
     credentials: true,
 }));
 app.use(express.json());
@@ -28,7 +33,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
     try {
-        await client.connect();
+        // await client.connect();
         console.log("Connected to MongoDB!");
 
         const db = client.db("Task-manager");
@@ -164,56 +169,61 @@ async function run() {
 
 
    // PUT /tasks/:id - Update a task (for edits, reordering, or moving)
-app.put('/tasks/:id', async (req, res) => {
+   app.put('/tasks/:id', async (req, res) => {
     try {
-      const tasksCollection = db.collection('tasks');
-      const { id } = req.params;
-  
-      // Validate that the provided id is a valid ObjectId
-      if (!ObjectId.isValid(id)) {
-        return res.status(400).json({ message: 'Invalid task ID' });
-      }
-  
-      const update = req.body;
-      const result = await tasksCollection.updateOne(
-        { _id: ObjectId(id) },
-        { $set: update }
-      );
-  
-      // Check if a task was matched/updated
-      if (result.matchedCount === 0) {
-        return res.status(404).json({ message: 'Task not found' });
-      }
-  
-      res.status(200).json({ message: 'Task updated successfully' });
+        const id = req.params.id; // Extracts the task ID from the URL
+        const filter = { _id: new ObjectId(id) }; // MongoDB filter based on the provided ID
+        const updatedTask = req.body; // Get the updated task details from the request body
+
+        const task = {
+            $set: {
+                title: updatedTask.title,
+                description: updatedTask.description,
+                status: updatedTask.status,
+                createdAt: new Date(), // Update the createdAt field
+            }
+        };
+
+        // Ensure the task exists before updating
+        const result = await tasksCollection.updateOne(filter, task, { upsert: true });
+
+        if (result.matchedCount === 0) {
+            return res.status(404).send({ message: "Task not found" });
+        }
+
+        // Send back the update result
+        res.status(200).send(result); 
+
     } catch (error) {
-      console.error('Error updating task:', error);
-      res.status(500).json({ message: 'Server error' });
+        console.error(error);
+        res.status(500).send({ message: "Internal Server Error" }); // Error handling
     }
-  });
+});
+
+
   // DELETE /tasks/:id - Delete a task
   app.delete('/tasks/:id', async (req, res) => {
+    const { id } = req.params;
+    console.log("Received ID to delete:", id); // Log the received ID
+  
+    const query = { _id: new ObjectId(id) };
+
     try {
-      const tasksCollection = db.collection('tasks');
-      const { id } = req.params;
+        const result = await tasksCollection.deleteOne(query);
   
-      // Validate that the provided id is a valid ObjectId
-      if (!ObjectId.isValid(id)) {
-        return res.status(400).json({ message: 'Invalid task ID' });
-      }
-  
-      const result = await tasksCollection.deleteOne({ _id: ObjectId(id) });
-  
-      // Check if a task was actually deleted
-      if (result.deletedCount === 0) {
-        return res.status(404).json({ message: 'Task not found' });
-      }
-  
-      res.status(200).json({ message: 'Task deleted successfully' });
-    } catch (error) {
-      console.error('Error deleting task:', error);
-      res.status(500).json({ message: 'Server error' });
-    }
+     
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ message: "task application not found" });
+          }
+      
+          res.status(200).json({ message: "task application deleted successfully" });
+        } catch (error) {
+          console.error("Error deleting task application:", error);
+          res.status(500).json({
+            message: "An error occurred while deleting the task application",
+          });
+        }
+
   });
   
 
